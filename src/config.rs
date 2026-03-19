@@ -79,7 +79,7 @@ impl Config {
             sources: vec![
                 Source {
                     name: "Reuters Top News".to_string(),
-                    url: "https://feeds.reuters.com/reuters/topNews".to_string(),
+                    url: "http://feeds.reuters.com/reuters/topNews".to_string(),
                     feed_type: FeedType::Rss,
                 },
                 Source {
