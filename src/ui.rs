@@ -10,15 +10,18 @@ use ratatui::{
 };
 
 const HELP_LIST: &str =
-    " Tab/→: next source  Shift+Tab/←: prev source  ↑/k: up  ↓/j: down  Enter: read  r: refresh  a: add source  d: delete source  q: quit ";
+    " Tab/→: next  Shift+Tab/←: prev  ↑/k: up  ↓/j: down  Enter: read  r: refresh  t: toggle auto-refresh  s: summary  a: add  d: delete  q: quit ";
 const HELP_DETAIL: &str =
     " ↑/k: scroll up  ↓/j: scroll down  Esc/Backspace: back  q: quit ";
+const HELP_SUMMARY: &str =
+    " ↑/k: scroll up  ↓/j: scroll down  Esc/Backspace: back to list  q: quit ";
 const HELP_ADD: &str =
     " Tab: next field  Enter: confirm  Esc: cancel ";
 
 pub fn draw(f: &mut Frame, app: &App) {
     match app.view_mode {
         ViewMode::AddSource => draw_add_source(f, app, f.area()),
+        ViewMode::Summary => draw_summary(f, app),
         _ => draw_main(f, app),
     }
 }
@@ -293,6 +296,7 @@ fn draw_status(f: &mut Frame, app: &App, area: Rect) {
     let help_text = match app.view_mode {
         ViewMode::Detail => HELP_DETAIL,
         ViewMode::AddSource => HELP_ADD,
+        ViewMode::Summary => HELP_SUMMARY,
         ViewMode::List => HELP_LIST,
     };
 
@@ -450,4 +454,116 @@ fn draw_main_behind(f: &mut Frame, app: &App, area: Rect) {
         );
         f.render_widget(dimmed, chunks[1]);
     }
+}
+
+fn draw_summary(f: &mut Frame, app: &App) {
+    let area = f.area();
+
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3), // Title
+            Constraint::Min(0),    // Content
+            Constraint::Length(1), // Help / status bar
+        ])
+        .split(area);
+
+    // Draw title
+    let title = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .title(" Summary - Top 5 Articles from All Feeds ")
+        .title_alignment(Alignment::Center)
+        .style(Style::default().fg(Color::Cyan));
+    f.render_widget(title, chunks[0]);
+
+    // Draw articles list
+    if app.summary_articles.is_empty() {
+        let empty = Paragraph::new("No articles available for summary.\nRefresh feeds to see content.")
+            .alignment(Alignment::Center)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded),
+            );
+        f.render_widget(empty, chunks[1]);
+    } else {
+        let total = app.summary_articles.len();
+        let items: Vec<ListItem> = app
+            .summary_articles
+            .iter()
+            .enumerate()
+            .map(|(i, (source_name, article))| {
+                let is_selected = app.summary_selected == Some(i);
+                let title_style = if is_selected {
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(Color::White)
+                };
+                let meta_style = Style::default().fg(Color::DarkGray);
+                let source_style = Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::ITALIC);
+
+                let mut lines = vec![
+                    Line::from(vec![Span::styled(
+                        format!(" {} ", article.title),
+                        title_style,
+                    )]),
+                ];
+
+                // Add source name
+                lines.push(Line::from(vec![Span::styled(
+                    format!("   Source: {}", source_name),
+                    source_style,
+                )]));
+
+                // Add metadata
+                let mut meta_parts = vec![];
+                if !article.pub_date.is_empty() {
+                    meta_parts.push(article.pub_date.clone());
+                }
+                if !article.author.is_empty() {
+                    meta_parts.push(format!("by {}", article.author));
+                }
+                if !meta_parts.is_empty() {
+                    lines.push(Line::from(vec![Span::styled(
+                        format!("   {}", meta_parts.join(" · ")),
+                        meta_style,
+                    )]));
+                }
+
+                // Separator
+                lines.push(Line::from(Span::styled(
+                    "─".repeat(area.width.saturating_sub(4) as usize),
+                    Style::default().fg(Color::DarkGray),
+                )));
+
+                ListItem::new(Text::from(lines))
+            })
+            .collect();
+
+        let mut list_state = ListState::default();
+        list_state.select(app.summary_selected);
+
+        let list = List::new(items)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .title(format!(" Summary ({} articles) ", total))
+                    .title_style(Style::default().fg(Color::Cyan)),
+            )
+            .highlight_style(
+                Style::default()
+                    .bg(Color::DarkGray)
+                    .add_modifier(Modifier::BOLD),
+            );
+
+        f.render_stateful_widget(list, chunks[1], &mut list_state);
+    }
+
+    draw_status(f, app, chunks[2]);
 }

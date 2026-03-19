@@ -82,6 +82,30 @@ fn run_app(
             terminal.draw(|f| ui::draw(f, &app_lock))?;
         }
 
+        // Check if auto-refresh is needed
+        {
+            let mut app_lock = app.lock().unwrap();
+            if app_lock.should_auto_refresh() {
+                app_lock.refresh_all();
+                let sources: Vec<_> = app_lock
+                    .tabs
+                    .iter()
+                    .map(|t| t.source.clone())
+                    .collect();
+                drop(app_lock);
+
+                // Spawn threads to fetch all feeds
+                for (i, source) in sources.into_iter().enumerate() {
+                    let app_ref = Arc::clone(&app);
+                    thread::spawn(move || {
+                        let result = feed::fetch_feed(&source);
+                        let mut a = app_ref.lock().unwrap();
+                        a.set_articles(i, result);
+                    });
+                }
+            }
+        }
+
         // Poll for events with a short timeout so we can re-render on feed updates
         if event::poll(Duration::from_millis(200))? {
             if let Event::Key(key) = event::read()? {
@@ -95,6 +119,7 @@ fn run_app(
                 match mode {
                     ViewMode::AddSource => handle_add_source_input(&mut app_lock, key, Arc::clone(&app)),
                     ViewMode::Detail => handle_detail_input(&mut app_lock, key),
+                    ViewMode::Summary => handle_summary_input(&mut app_lock, key),
                     ViewMode::List => handle_list_input(&mut app_lock, key, Arc::clone(&app)),
                 }
 
@@ -135,6 +160,12 @@ fn handle_list_input(
         }
         KeyCode::Enter => {
             app.select_article();
+        }
+        KeyCode::Char('t') | KeyCode::Char('T') => {
+            app.toggle_auto_refresh();
+        }
+        KeyCode::Char('s') | KeyCode::Char('S') => {
+            app.enter_summary_mode();
         }
         KeyCode::Char('r') | KeyCode::Char('R') => {
             let idx = app.current_tab;
@@ -181,6 +212,27 @@ fn handle_detail_input(app: &mut App, key: crossterm::event::KeyEvent) {
         }
         KeyCode::Up | KeyCode::Char('k') => {
             app.scroll_up();
+        }
+        KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            app.should_quit = true;
+        }
+        _ => {}
+    }
+}
+
+fn handle_summary_input(app: &mut App, key: crossterm::event::KeyEvent) {
+    match key.code {
+        KeyCode::Char('q') | KeyCode::Char('Q') => {
+            app.should_quit = true;
+        }
+        KeyCode::Esc | KeyCode::Backspace => {
+            app.exit_summary_mode();
+        }
+        KeyCode::Down | KeyCode::Char('j') => {
+            app.scroll_summary_down();
+        }
+        KeyCode::Up | KeyCode::Char('k') => {
+            app.scroll_summary_up();
         }
         KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
             app.should_quit = true;

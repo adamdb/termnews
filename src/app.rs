@@ -6,6 +6,7 @@ pub enum ViewMode {
     List,
     Detail,
     AddSource,
+    Summary,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -74,6 +75,12 @@ pub struct App {
     pub add_source_state: Option<AddSourceState>,
     pub should_quit: bool,
     pub status_message: Option<String>,
+    pub auto_refresh_enabled: bool,
+    pub refresh_interval_secs: u64,
+    pub last_refresh_time: std::time::Instant,
+    pub summary_articles: Vec<(String, Article)>, // (source_name, article)
+    pub summary_selected: Option<usize>,
+    pub summary_scroll_offset: usize,
 }
 
 impl App {
@@ -92,6 +99,12 @@ impl App {
             add_source_state: None,
             should_quit: false,
             status_message: None,
+            auto_refresh_enabled: false,
+            refresh_interval_secs: 300, // 5 minutes default
+            last_refresh_time: std::time::Instant::now(),
+            summary_articles: Vec::new(),
+            summary_selected: None,
+            summary_scroll_offset: 0,
         }
     }
 
@@ -258,6 +271,133 @@ impl App {
             tab.error = None;
         }
     }
+
+    pub fn toggle_auto_refresh(&mut self) {
+        self.auto_refresh_enabled = !self.auto_refresh_enabled;
+        self.last_refresh_time = std::time::Instant::now();
+        self.status_message = Some(format!(
+            "Auto-refresh {}",
+            if self.auto_refresh_enabled {
+                "enabled"
+            } else {
+                "disabled"
+            }
+        ));
+    }
+
+    pub fn should_auto_refresh(&self) -> bool {
+        if !self.auto_refresh_enabled {
+            return false;
+        }
+        let elapsed = self.last_refresh_time.elapsed();
+        elapsed.as_secs() >= self.refresh_interval_secs
+    }
+
+    pub fn refresh_all(&mut self) {
+        self.last_refresh_time = std::time::Instant::now();
+        for tab in &mut self.tabs {
+            tab.loading = true;
+            tab.articles.clear();
+            tab.selected = None;
+            tab.scroll_offset = 0;
+            tab.error = None;
+        }
+    }
+
+    pub fn enter_summary_mode(&mut self) {
+        self.view_mode = ViewMode::Summary;
+        self.build_summary();
+    }
+
+    pub fn exit_summary_mode(&mut self) {
+        self.view_mode = ViewMode::List;
+        self.summary_selected = None;
+        self.summary_scroll_offset = 0;
+    }
+
+    pub fn build_summary(&mut self) {
+        use chrono::{DateTime, FixedOffset};
+
+        // Collect top 5 articles from each feed
+        let mut all_articles: Vec<(String, Article, Option<DateTime<FixedOffset>>)> = Vec::new();
+
+        for tab in &self.tabs {
+            if tab.error.is_some() || tab.loading {
+                continue;
+            }
+            for article in tab.articles.iter().take(5) {
+                // Try to parse the publication date
+                let parsed_date = parse_date(&article.pub_date);
+                all_articles.push((tab.source.name.clone(), article.clone(), parsed_date));
+            }
+        }
+
+        // Sort by publication date in descending order (newest first)
+        all_articles.sort_by(|a, b| {
+            match (&a.2, &b.2) {
+                (Some(date_a), Some(date_b)) => date_b.cmp(date_a),
+                (Some(_), None) => std::cmp::Ordering::Less,
+                (None, Some(_)) => std::cmp::Ordering::Greater,
+                (None, None) => std::cmp::Ordering::Equal,
+            }
+        });
+
+        self.summary_articles = all_articles
+            .into_iter()
+            .map(|(name, article, _)| (name, article))
+            .collect();
+
+        if !self.summary_articles.is_empty() {
+            self.summary_selected = Some(0);
+        } else {
+            self.summary_selected = None;
+        }
+        self.summary_scroll_offset = 0;
+    }
+
+    pub fn scroll_summary_down(&mut self) {
+        if self.summary_articles.is_empty() {
+            return;
+        }
+        let max = self.summary_articles.len().saturating_sub(1);
+        let sel = self.summary_selected.unwrap_or(0);
+        let new_sel = (sel + 1).min(max);
+        self.summary_selected = Some(new_sel);
+        // Adjust scroll offset for visibility
+        self.summary_scroll_offset = self.summary_scroll_offset.max(new_sel.saturating_sub(20));
+    }
+
+    pub fn scroll_summary_up(&mut self) {
+        if self.summary_articles.is_empty() {
+            return;
+        }
+        let sel = self.summary_selected.unwrap_or(0);
+        let new_sel = sel.saturating_sub(1);
+        self.summary_selected = Some(new_sel);
+        if new_sel < self.summary_scroll_offset {
+            self.summary_scroll_offset = new_sel;
+        }
+    }
+}
+
+fn parse_date(date_str: &str) -> Option<chrono::DateTime<chrono::FixedOffset>> {
+    use chrono::DateTime;
+
+    if date_str.is_empty() {
+        return None;
+    }
+
+    // Try RFC3339 format first
+    if let Ok(dt) = DateTime::parse_from_rfc3339(date_str) {
+        return Some(dt);
+    }
+
+    // Try RFC2822 format
+    if let Ok(dt) = DateTime::parse_from_rfc2822(date_str) {
+        return Some(dt);
+    }
+
+    None
 }
 
 #[cfg(test)]

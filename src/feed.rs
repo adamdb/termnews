@@ -38,8 +38,19 @@ impl std::fmt::Display for FetchError {
 }
 
 pub fn fetch_feed(source: &Source) -> Result<Vec<Article>, FetchError> {
-    let response = reqwest::blocking::get(&source.url)
+    // Build a client with proper configuration for feed fetching
+    let client = reqwest::blocking::Client::builder()
+        .user_agent("Mozilla/5.0 (compatible; termnews/0.1; +https://github.com/adamdb/newsterm)")
+        .timeout(std::time::Duration::from_secs(30))
+        .redirect(reqwest::redirect::Policy::limited(10))
+        .build()
+        .map_err(|e| FetchError::Network(format!("Failed to build HTTP client: {}", e)))?;
+
+    let response = client
+        .get(&source.url)
+        .send()
         .map_err(|e| FetchError::Network(e.to_string()))?;
+
     let body = response
         .text()
         .map_err(|e| FetchError::Network(e.to_string()))?;
