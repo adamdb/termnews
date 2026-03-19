@@ -52,6 +52,18 @@ feed_type = "atom"
 cargo install --path .
 ```
 
+## Updating
+
+If you've already installed termnews and want to pull the latest changes:
+
+```bash
+# Pull the latest changes from the repository
+git pull
+
+# Reinstall with the updated code
+cargo install --path .
+```
+
 ## Building from source
 
 ```bash
