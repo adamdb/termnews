@@ -37,7 +37,7 @@ Example `config.toml`:
 ```toml
 [[sources]]
 name = "Reuters Top News"
-url = "https://feeds.reuters.com/reuters/topNews"
+url = "http://feeds.reuters.com/reuters/topNews"
 feed_type = "rss"
 
 [[sources]]
