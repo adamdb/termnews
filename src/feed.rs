@@ -1,4 +1,4 @@
-use crate::config::{FeedType, Source};
+use crate::config::{FeedType, Source, SourceType};
 
 #[derive(Debug, Clone)]
 pub struct Article {
@@ -38,6 +38,18 @@ impl std::fmt::Display for FetchError {
 }
 
 pub fn fetch_feed(source: &Source) -> Result<Vec<Article>, FetchError> {
+    match &source.source_type {
+        SourceType::Feed { url, feed_type } => fetch_rss_atom(url, feed_type),
+        SourceType::Irc { .. } => {
+            // IRC sources are not yet supported for fetching
+            Err(FetchError::Network(
+                "IRC source fetching is not yet implemented".to_string(),
+            ))
+        }
+    }
+}
+
+fn fetch_rss_atom(url: &str, feed_type: &FeedType) -> Result<Vec<Article>, FetchError> {
     // Build a client with proper configuration for feed fetching
     let client = reqwest::blocking::Client::builder()
         .user_agent("Mozilla/5.0 (compatible; termnews/0.1; +https://github.com/adamdb/newsterm)")
@@ -47,7 +59,7 @@ pub fn fetch_feed(source: &Source) -> Result<Vec<Article>, FetchError> {
         .map_err(|e| FetchError::Network(format!("Failed to build HTTP client: {}", e)))?;
 
     let response = client
-        .get(&source.url)
+        .get(url)
         .send()
         .map_err(|e| FetchError::Network(e.to_string()))?;
 
@@ -55,7 +67,7 @@ pub fn fetch_feed(source: &Source) -> Result<Vec<Article>, FetchError> {
         .text()
         .map_err(|e| FetchError::Network(e.to_string()))?;
 
-    match source.feed_type {
+    match feed_type {
         FeedType::Rss => parse_rss(&body),
         FeedType::Atom => parse_atom(&body),
     }

@@ -208,13 +208,12 @@ impl App {
                 return false;
             }
             let feed_type = state.selected_feed_type();
-            let source = Source {
-                name: name.clone(),
-                url: url.clone(),
-                feed_type,
-            };
-            self.config.add_source(name, url, source.feed_type.clone());
+            self.config.add_source(name.clone(), url.clone(), feed_type.clone());
             let _ = self.config.save();
+            let source = crate::config::Source {
+                name,
+                source_type: crate::config::SourceType::Feed { url, feed_type },
+            };
             self.tabs.push(TabState::new(source));
             let new_idx = self.tabs.len() - 1;
             self.tabs[new_idx].loading = true;

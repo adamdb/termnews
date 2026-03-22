@@ -56,10 +56,22 @@ fn draw_tabs(f: &mut Frame, app: &App, area: Rect) {
             } else {
                 Style::default().fg(Color::White)
             };
+
+            // Add source type prefix
+            let prefix = match &tab.source.source_type {
+                crate::config::SourceType::Feed { feed_type, .. } => {
+                    match feed_type {
+                        crate::config::FeedType::Rss => "[RSS] ",
+                        crate::config::FeedType::Atom => "[Atom] ",
+                    }
+                }
+                crate::config::SourceType::Irc { .. } => "[IRC] ",
+            };
+
             let loading = if tab.loading { " ⟳" } else { "" };
             let err = if tab.error.is_some() { " ✗" } else { "" };
             Line::from(vec![Span::styled(
-                format!(" {}{}{} ", tab.source.name, loading, err),
+                format!(" {}{}{}{} ", prefix, tab.source.name, loading, err),
                 style,
             )])
         })

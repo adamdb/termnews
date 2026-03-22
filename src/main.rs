@@ -1,6 +1,7 @@
 mod app;
 mod config;
 mod feed;
+mod irc;
 mod ui;
 
 use app::{App, InputField, ViewMode};
