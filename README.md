@@ -1,6 +1,6 @@
 # termnews
 
-A terminal news aggregator written in Rust. Browse RSS and Atom feeds in a beautiful TUI with tabbed windows — one per news source.
+A terminal news aggregator written in Rust. Browse RSS and Atom feeds in a beautiful TUI with tabbed windows.
 
 ## Features
 
