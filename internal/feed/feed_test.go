@@ -115,9 +115,32 @@ func TestArticleSummary(t *testing.T) {
 }
 
 func TestFetchErrorString(t *testing.T) {
-	err := FetchError{Type: "network", Message: "connection timeout"}
-	expected := "network error: connection timeout"
-	if err.Error() != expected {
-		t.Errorf("Error() = %q, want %q", err.Error(), expected)
+	tests := []struct {
+		name     string
+		errType  string
+		message  string
+		expected string
+	}{
+		{
+			name:     "network error",
+			errType:  "network",
+			message:  "connection timeout",
+			expected: "network error: connection timeout",
+		},
+		{
+			name:     "parse error",
+			errType:  "parse",
+			message:  "invalid XML",
+			expected: "parse error: invalid XML",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := FetchError{Type: tt.errType, Message: tt.message}
+			if err.Error() != tt.expected {
+				t.Errorf("Error() = %q, want %q", err.Error(), tt.expected)
+			}
+		})
 	}
 }

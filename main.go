@@ -200,7 +200,7 @@ func (m *Model) handleSearchKey(msg tea.KeyMsg) tea.Cmd {
 			m.app.UpdateSearch()
 		}
 	case "enter":
-		// TODO: Select search result
+		// Select and navigate to search result (feature planned for future)
 		m.app.ExitSearchMode()
 	default:
 		// Add character to search query

@@ -63,8 +63,8 @@ func TestConfigSaveAndLoad(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	// Override config path for testing
-	origConfigPath := ConfigPath
-	defer func() { _ = origConfigPath }()
+	// Note: ConfigPath is a function, not a variable, so we can't override it directly.
+	// This test validates the config structure and TOML serialization instead.
 
 	testConfigPath := filepath.Join(tmpDir, "config.toml")
 
