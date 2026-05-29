@@ -1,1 +1,24 @@
-/target
+# Go build output
+/termnews
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go test binary
+*.test
+
+# Go coverage
+*.out
+coverage.html
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
