@@ -25,13 +25,71 @@ type Source struct {
 	Category string   `toml:"category,omitempty"` // Optional category for organizing feeds
 }
 
+// Keybinding represents a single keybinding configuration.
+type Keybinding struct {
+	Key    string `toml:"key"`              // Primary key (e.g., "q", "ctrl+c", "enter")
+	Alt    string `toml:"alt,omitempty"`    // Alternative key binding
+	Action string `toml:"action,omitempty"` // Action name (for documentation)
+}
+
+// Keybindings holds all configurable key bindings.
+type Keybindings struct {
+	Quit          Keybinding `toml:"quit,omitempty"`
+	NextTab       Keybinding `toml:"next_tab,omitempty"`
+	PrevTab       Keybinding `toml:"prev_tab,omitempty"`
+	ScrollDown    Keybinding `toml:"scroll_down,omitempty"`
+	ScrollUp      Keybinding `toml:"scroll_up,omitempty"`
+	Select        Keybinding `toml:"select,omitempty"`
+	Back          Keybinding `toml:"back,omitempty"`
+	Refresh       Keybinding `toml:"refresh,omitempty"`
+	RefreshAll    Keybinding `toml:"refresh_all,omitempty"`
+	ToggleAuto    Keybinding `toml:"toggle_auto,omitempty"`
+	Summary       Keybinding `toml:"summary,omitempty"`
+	Search        Keybinding `toml:"search,omitempty"`
+	AddSource     Keybinding `toml:"add_source,omitempty"`
+	DeleteSource  Keybinding `toml:"delete_source,omitempty"`
+	Bookmark      Keybinding `toml:"bookmark,omitempty"`
+	MarkRead      Keybinding `toml:"mark_read,omitempty"`
+	OpenBrowser   Keybinding `toml:"open_browser,omitempty"`
+	Help          Keybinding `toml:"help,omitempty"`
+}
+
+// DefaultKeybindings returns the default keybinding configuration.
+func DefaultKeybindings() Keybindings {
+	return Keybindings{
+		Quit:          Keybinding{Key: "q", Alt: "ctrl+c", Action: "Quit application"},
+		NextTab:       Keybinding{Key: "tab", Alt: "right", Action: "Next tab"},
+		PrevTab:       Keybinding{Key: "shift+tab", Alt: "left", Action: "Previous tab"},
+		ScrollDown:    Keybinding{Key: "down", Alt: "j", Action: "Scroll down"},
+		ScrollUp:      Keybinding{Key: "up", Alt: "k", Action: "Scroll up"},
+		Select:        Keybinding{Key: "enter", Action: "Select/open article"},
+		Back:          Keybinding{Key: "esc", Alt: "backspace", Action: "Go back"},
+		Refresh:       Keybinding{Key: "r", Action: "Refresh current feed"},
+		RefreshAll:    Keybinding{Key: "R", Action: "Refresh all feeds"},
+		ToggleAuto:    Keybinding{Key: "t", Action: "Toggle auto-refresh"},
+		Summary:       Keybinding{Key: "s", Action: "Summary view"},
+		Search:        Keybinding{Key: "/", Action: "Search articles"},
+		AddSource:     Keybinding{Key: "a", Action: "Add new source"},
+		DeleteSource:  Keybinding{Key: "d", Action: "Delete current source"},
+		Bookmark:      Keybinding{Key: "b", Action: "Toggle bookmark"},
+		MarkRead:      Keybinding{Key: "m", Action: "Mark all as read"},
+		OpenBrowser:   Keybinding{Key: "o", Action: "Open in browser"},
+		Help:          Keybinding{Key: "?", Action: "Show help"},
+	}
+}
+
 // Config holds all application configuration.
 type Config struct {
-	Sources             []Source `toml:"sources"`
-	RefreshIntervalMins int      `toml:"refresh_interval_mins,omitempty"` // Auto-refresh interval in minutes
-	MaxArticlesPerFeed  int      `toml:"max_articles_per_feed,omitempty"` // Max articles to show per feed
-	Theme               string   `toml:"theme,omitempty"`                 // Color theme: "default", "dark", "light"
-	ShowReadStatus      bool     `toml:"show_read_status,omitempty"`      // Track read/unread status
+	Sources             []Source    `toml:"sources"`
+	RefreshIntervalMins int         `toml:"refresh_interval_mins,omitempty"` // Auto-refresh interval in minutes
+	MaxArticlesPerFeed  int         `toml:"max_articles_per_feed,omitempty"` // Max articles to show per feed
+	ThemeName           string      `toml:"theme,omitempty"`                 // Built-in theme: "default", "bitchx", "hacker", "minimal", "retro"
+	ShowReadStatus      bool        `toml:"show_read_status,omitempty"`      // Track read/unread status
+	CustomTheme         Theme       `toml:"custom_theme,omitempty"`          // Custom theme overrides
+	Keybindings         Keybindings `toml:"keybindings,omitempty"`           // Custom keybindings
+
+	// Computed/resolved theme (not persisted)
+	ResolvedTheme Theme `toml:"-"`
 }
 
 // ConfigPath returns the path to the config file.
@@ -63,8 +121,18 @@ func Load() *Config {
 	if cfg.MaxArticlesPerFeed <= 0 {
 		cfg.MaxArticlesPerFeed = 50
 	}
-	if cfg.Theme == "" {
-		cfg.Theme = "default"
+	if cfg.ThemeName == "" {
+		cfg.ThemeName = "default"
+	}
+
+	// Resolve the theme: start with built-in, merge with custom overrides
+	baseTheme := GetBuiltinTheme(cfg.ThemeName)
+	cfg.ResolvedTheme = MergeTheme(baseTheme, cfg.CustomTheme)
+
+	// Initialize default keybindings if not set
+	defaultKeys := DefaultKeybindings()
+	if cfg.Keybindings.Quit.Key == "" {
+		cfg.Keybindings = defaultKeys
 	}
 
 	return cfg
@@ -108,11 +176,12 @@ func (c *Config) RemoveSource(index int) {
 
 // DefaultConfig returns the default configuration with popular news sources.
 func DefaultConfig() *Config {
-	return &Config{
+	cfg := &Config{
 		RefreshIntervalMins: 5,
 		MaxArticlesPerFeed:  50,
-		Theme:               "default",
+		ThemeName:           "default",
 		ShowReadStatus:      true,
+		Keybindings:         DefaultKeybindings(),
 		Sources: []Source{
 			{
 				Name:     "Reuters Top News",
@@ -140,4 +209,7 @@ func DefaultConfig() *Config {
 			},
 		},
 	}
+	// Resolve the default theme
+	cfg.ResolvedTheme = DefaultTheme()
+	return cfg
 }

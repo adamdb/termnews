@@ -71,7 +71,7 @@ func TestConfigSaveAndLoad(t *testing.T) {
 	cfg := &Config{
 		RefreshIntervalMins: 10,
 		MaxArticlesPerFeed:  25,
-		Theme:               "dark",
+		ThemeName:           "bitchx",
 		ShowReadStatus:      true,
 		Sources: []Source{
 			{
@@ -97,7 +97,7 @@ func TestConfigSaveAndLoad(t *testing.T) {
 	_, err = f.WriteString(`
 refresh_interval_mins = 10
 max_articles_per_feed = 25
-theme = "dark"
+theme = "bitchx"
 show_read_status = true
 
 [[sources]]
@@ -113,5 +113,55 @@ category = "Test"
 	// Verify config values
 	if cfg.Sources[0].FeedType != FeedTypeAtom {
 		t.Errorf("Expected feed type 'atom', got '%s'", cfg.Sources[0].FeedType)
+	}
+}
+
+func TestGetBuiltinTheme(t *testing.T) {
+	tests := []struct {
+		name     string
+		expected string
+	}{
+		{"default", "default"},
+		{"bitchx", "bitchx"},
+		{"hacker", "hacker"},
+		{"minimal", "minimal"},
+		{"retro", "retro"},
+		{"unknown", "default"}, // Unknown themes fallback to default
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			theme := GetBuiltinTheme(tt.name)
+			if theme.Name != tt.expected {
+				t.Errorf("Expected theme name '%s', got '%s'", tt.expected, theme.Name)
+			}
+		})
+	}
+}
+
+func TestMergeTheme(t *testing.T) {
+	base := DefaultTheme()
+	override := Theme{
+		Colors: ThemeColors{
+			Primary: "99",
+		},
+		Markers: ThemeMarkers{
+			Unread: "[NEW]",
+		},
+	}
+
+	merged := MergeTheme(base, override)
+
+	// Override should take precedence
+	if merged.Colors.Primary != "99" {
+		t.Errorf("Expected primary color '99', got '%s'", merged.Colors.Primary)
+	}
+	if merged.Markers.Unread != "[NEW]" {
+		t.Errorf("Expected unread marker '[NEW]', got '%s'", merged.Markers.Unread)
+	}
+
+	// Non-overridden values should remain from base
+	if merged.Colors.Secondary != base.Colors.Secondary {
+		t.Errorf("Expected secondary color '%s', got '%s'", base.Colors.Secondary, merged.Colors.Secondary)
 	}
 }
