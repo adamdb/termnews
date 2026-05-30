@@ -357,18 +357,21 @@ func (r *Renderer) renderList(a *app.App, tab *app.TabState, width, height int) 
 		title += r.categoryStyle.Render("[" + tab.Source.Category + "]")
 	}
 
-	// Calculate visible articles
+	// Calculate visible articles based on display mode
 	visibleHeight := height - 2 // Account for border
-	linesPerArticle := 3        // title + meta + separator
-	if t.ArticleList.Compact {
-		linesPerArticle = 2 // title + separator
+	
+	// Determine lines per article: base + meta (if not compact) + separator (if shown)
+	// Compact mode: title only (1 line)
+	// Normal mode: title + meta (2 lines)
+	// With separator: add 1 line
+	linesPerArticle := 1 // Always have at least the title line
+	if !t.ArticleList.Compact && t.ArticleList.ShowMeta {
+		linesPerArticle++ // Meta line
 	}
-	if !t.ArticleList.ShowSeparators {
-		linesPerArticle--
+	if t.ArticleList.ShowSeparators {
+		linesPerArticle++ // Separator line
 	}
-	if linesPerArticle < 1 {
-		linesPerArticle = 1
-	}
+	// Minimum 1 line per article is guaranteed by starting at 1
 
 	visibleArticles := visibleHeight / linesPerArticle
 	if visibleArticles < 1 {
@@ -385,10 +388,15 @@ func (r *Renderer) renderList(a *app.App, tab *app.TabState, width, height int) 
 		article := tab.Articles[i]
 		isSelected := i == tab.Selected
 
-		// Title line
+		// Title line - reserve space for prefix (selection marker, number, indicators)
+		// Truncate safely by limiting to available width minus prefix and ellipsis
 		titleText := article.Title
-		if len(titleText) > contentWidth-6 {
-			titleText = titleText[:contentWidth-9] + "..."
+		maxTitleLen := contentWidth - 10 // Reserve space for prefix elements and ellipsis
+		if maxTitleLen < 10 {
+			maxTitleLen = 10 // Minimum readable title length
+		}
+		if len(titleText) > maxTitleLen {
+			titleText = titleText[:maxTitleLen-3] + "..."
 		}
 
 		// Build prefix with optional article number
@@ -798,6 +806,9 @@ func (r *Renderer) renderHelp(a *app.App, width, height int) string {
 		title = "TERMNEWS"
 	}
 
+	// Format help content with title and underline decoration
+	// First %s: application title (e.g., "TERMNEWS")
+	// Second %s: underline decoration (═ repeated to match title length + 5)
 	helpContent := fmt.Sprintf(`
 %s HELP
 %s

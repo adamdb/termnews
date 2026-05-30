@@ -78,6 +78,67 @@ func DefaultKeybindings() Keybindings {
 	}
 }
 
+// MergeKeybindings merges user keybinding overrides with defaults.
+// Any keybinding with an empty Key in the override uses the base value.
+func MergeKeybindings(base, override Keybindings) Keybindings {
+	result := base
+	if override.Quit.Key != "" {
+		result.Quit = override.Quit
+	}
+	if override.NextTab.Key != "" {
+		result.NextTab = override.NextTab
+	}
+	if override.PrevTab.Key != "" {
+		result.PrevTab = override.PrevTab
+	}
+	if override.ScrollDown.Key != "" {
+		result.ScrollDown = override.ScrollDown
+	}
+	if override.ScrollUp.Key != "" {
+		result.ScrollUp = override.ScrollUp
+	}
+	if override.Select.Key != "" {
+		result.Select = override.Select
+	}
+	if override.Back.Key != "" {
+		result.Back = override.Back
+	}
+	if override.Refresh.Key != "" {
+		result.Refresh = override.Refresh
+	}
+	if override.RefreshAll.Key != "" {
+		result.RefreshAll = override.RefreshAll
+	}
+	if override.ToggleAuto.Key != "" {
+		result.ToggleAuto = override.ToggleAuto
+	}
+	if override.Summary.Key != "" {
+		result.Summary = override.Summary
+	}
+	if override.Search.Key != "" {
+		result.Search = override.Search
+	}
+	if override.AddSource.Key != "" {
+		result.AddSource = override.AddSource
+	}
+	if override.DeleteSource.Key != "" {
+		result.DeleteSource = override.DeleteSource
+	}
+	if override.Bookmark.Key != "" {
+		result.Bookmark = override.Bookmark
+	}
+	if override.MarkRead.Key != "" {
+		result.MarkRead = override.MarkRead
+	}
+	if override.OpenBrowser.Key != "" {
+		result.OpenBrowser = override.OpenBrowser
+	}
+	if override.Help.Key != "" {
+		result.Help = override.Help
+	}
+	return result
+}
+
 // Config holds all application configuration.
 type Config struct {
 	Sources             []Source    `toml:"sources"`
@@ -129,11 +190,9 @@ func Load() *Config {
 	baseTheme := GetBuiltinTheme(cfg.ThemeName)
 	cfg.ResolvedTheme = MergeTheme(baseTheme, cfg.CustomTheme)
 
-	// Initialize default keybindings if not set
-	defaultKeys := DefaultKeybindings()
-	if cfg.Keybindings.Quit.Key == "" {
-		cfg.Keybindings = defaultKeys
-	}
+	// Merge default keybindings with user overrides
+	// This ensures any unset keybindings get default values
+	cfg.Keybindings = MergeKeybindings(DefaultKeybindings(), cfg.Keybindings)
 
 	return cfg
 }
