@@ -6,132 +6,284 @@ import (
 	"strings"
 
 	"github.com/adamdb/termnews/internal/app"
+	"github.com/adamdb/termnews/internal/config"
 	"github.com/charmbracelet/lipgloss"
 )
 
-// Styles for the UI
-var (
-	// Colors
-	colorCyan      = lipgloss.Color("6")
-	colorYellow    = lipgloss.Color("11")
-	colorWhite     = lipgloss.Color("15")
-	colorGray      = lipgloss.Color("8")
-	colorDarkGray  = lipgloss.Color("240")
-	colorBlue      = lipgloss.Color("4")
-	colorGreen     = lipgloss.Color("2")
-	colorRed       = lipgloss.Color("1")
+// Renderer holds the theme-aware styles for rendering.
+type Renderer struct {
+	theme config.Theme
 
-	// Styles
-	titleStyle = lipgloss.NewStyle().
-			Foreground(colorCyan).
-			Bold(true)
+	// Computed styles
+	titleStyle       lipgloss.Style
+	selectedStyle    lipgloss.Style
+	normalStyle      lipgloss.Style
+	dimStyle         lipgloss.Style
+	metaStyle        lipgloss.Style
+	linkStyle        lipgloss.Style
+	errorStyle       lipgloss.Style
+	statusStyle      lipgloss.Style
+	tabActiveStyle   lipgloss.Style
+	tabInactiveStyle lipgloss.Style
+	borderStyle      lipgloss.Style
+	helpStyle        lipgloss.Style
+	categoryStyle    lipgloss.Style
+	unreadStyle      lipgloss.Style
+	bookmarkStyle    lipgloss.Style
+	headerStyle      lipgloss.Style
+	statusBarStyle   lipgloss.Style
 
-	selectedStyle = lipgloss.NewStyle().
-			Foreground(colorYellow).
-			Bold(true)
+	// Border configuration
+	border lipgloss.Border
+}
 
-	normalStyle = lipgloss.NewStyle().
-			Foreground(colorWhite)
+// NewRenderer creates a new renderer with the given theme.
+func NewRenderer(theme config.Theme) *Renderer {
+	r := &Renderer{theme: theme}
+	r.initStyles()
+	return r
+}
 
-	dimStyle = lipgloss.NewStyle().
-			Foreground(colorDarkGray)
+// initStyles initializes all lipgloss styles from theme configuration.
+func (r *Renderer) initStyles() {
+	t := r.theme
 
-	metaStyle = lipgloss.NewStyle().
-			Foreground(colorGray)
+	// Parse colors
+	primary := lipgloss.Color(t.Colors.Primary)
+	secondary := lipgloss.Color(t.Colors.Secondary)
+	text := lipgloss.Color(t.Colors.Text)
+	textMuted := lipgloss.Color(t.Colors.TextMuted)
+	errorColor := lipgloss.Color(t.Colors.Error)
+	successColor := lipgloss.Color(t.Colors.Success)
+	linkColor := lipgloss.Color(t.Colors.Link)
+	unreadColor := lipgloss.Color(t.Colors.Unread)
+	bookmarkColor := lipgloss.Color(t.Colors.Bookmark)
+	categoryColor := lipgloss.Color(t.Colors.Category)
+	borderColor := lipgloss.Color(t.Colors.Border)
+	headerColor := lipgloss.Color(t.Colors.Header)
+	statusBg := lipgloss.Color(t.Colors.StatusBg)
+	statusFg := lipgloss.Color(t.Colors.StatusFg)
 
-	linkStyle = lipgloss.NewStyle().
-			Foreground(colorBlue).
-			Underline(true)
+	// Initialize styles
+	r.titleStyle = lipgloss.NewStyle().
+		Foreground(primary).
+		Bold(true)
 
-	errorStyle = lipgloss.NewStyle().
-			Foreground(colorRed)
+	r.selectedStyle = lipgloss.NewStyle().
+		Foreground(secondary).
+		Bold(true)
 
-	statusStyle = lipgloss.NewStyle().
-			Foreground(colorGreen)
+	r.normalStyle = lipgloss.NewStyle().
+		Foreground(text)
 
-	tabActiveStyle = lipgloss.NewStyle().
-			Foreground(colorYellow).
-			Bold(true)
+	r.dimStyle = lipgloss.NewStyle().
+		Foreground(textMuted)
 
-	tabInactiveStyle = lipgloss.NewStyle().
-			Foreground(colorWhite)
+	r.metaStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("8")) // Gray for metadata
 
-	borderStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(colorCyan)
+	r.linkStyle = lipgloss.NewStyle().
+		Foreground(linkColor).
+		Underline(true)
 
-	helpStyle = lipgloss.NewStyle().
-			Foreground(colorDarkGray)
+	r.errorStyle = lipgloss.NewStyle().
+		Foreground(errorColor)
 
-	categoryStyle = lipgloss.NewStyle().
-			Foreground(colorCyan).
-			Italic(true)
+	r.statusStyle = lipgloss.NewStyle().
+		Foreground(successColor)
 
-	unreadStyle = lipgloss.NewStyle().
-			Foreground(colorGreen).
-			Bold(true)
-)
+	r.tabActiveStyle = lipgloss.NewStyle().
+		Foreground(secondary).
+		Bold(true)
 
-// Help text constants
-const (
-	HelpList    = " Tab/→: next  Shift+Tab/←: prev  ↑/k: up  ↓/j: down  Enter: read  r: refresh  t: auto-refresh  s: summary  /: search  a: add  d: delete  b: bookmark  m: mark read  o: open  ?: help  q: quit "
-	HelpDetail  = " ↑/k: scroll up  ↓/j: scroll down  o: open in browser  b: bookmark  Esc: back  q: quit "
-	HelpSummary = " ↑/k: scroll up  ↓/j: scroll down  Esc: back to list  q: quit "
-	HelpAdd     = " Tab: next field  ←/→: toggle type  Enter: confirm  Esc: cancel "
-	HelpSearch  = " Type to search  Enter: select  Esc: cancel "
-	HelpHelp    = " ↑/k: scroll up  ↓/j: scroll down  Esc/?: close help "
-)
+	r.tabInactiveStyle = lipgloss.NewStyle().
+		Foreground(text)
 
-// Render renders the entire UI.
-func Render(a *app.App, width, height int) string {
-	switch a.ViewMode {
-	case app.ViewModeAddSource:
-		return renderAddSource(a, width, height)
-	case app.ViewModeSummary:
-		return renderSummary(a, width, height)
-	case app.ViewModeSearch:
-		return renderSearch(a, width, height)
-	case app.ViewModeHelp:
-		return renderHelp(a, width, height)
-	default:
-		return renderMain(a, width, height)
+	r.helpStyle = lipgloss.NewStyle().
+		Foreground(textMuted)
+
+	r.categoryStyle = lipgloss.NewStyle().
+		Foreground(categoryColor).
+		Italic(true)
+
+	r.unreadStyle = lipgloss.NewStyle().
+		Foreground(unreadColor).
+		Bold(true)
+
+	r.bookmarkStyle = lipgloss.NewStyle().
+		Foreground(bookmarkColor).
+		Bold(true)
+
+	r.headerStyle = lipgloss.NewStyle().
+		Foreground(headerColor).
+		Bold(true)
+
+	// Status bar style
+	r.statusBarStyle = lipgloss.NewStyle().
+		Foreground(statusFg)
+	if t.Colors.StatusBg != "" {
+		r.statusBarStyle = r.statusBarStyle.Background(statusBg)
+	}
+
+	// Configure border based on theme
+	r.border = r.getBorder()
+
+	r.borderStyle = lipgloss.NewStyle().
+		Border(r.border).
+		BorderForeground(borderColor)
+}
+
+// getBorder returns the appropriate lipgloss border based on theme config.
+func (r *Renderer) getBorder() lipgloss.Border {
+	switch r.theme.Borders.Style {
+	case "sharp":
+		return lipgloss.NormalBorder()
+	case "double":
+		return lipgloss.DoubleBorder()
+	case "heavy":
+		return lipgloss.ThickBorder()
+	case "ascii":
+		return lipgloss.Border{
+			Top:         "-",
+			Bottom:      "-",
+			Left:        "|",
+			Right:       "|",
+			TopLeft:     "+",
+			TopRight:    "+",
+			BottomLeft:  "+",
+			BottomRight: "+",
+		}
+	case "none":
+		return lipgloss.HiddenBorder()
+	case "custom":
+		b := r.theme.Borders
+		return lipgloss.Border{
+			Top:         b.Horizontal,
+			Bottom:      b.Horizontal,
+			Left:        b.Vertical,
+			Right:       b.Vertical,
+			TopLeft:     b.TopLeft,
+			TopRight:    b.TopRight,
+			BottomLeft:  b.BottomLeft,
+			BottomRight: b.BottomRight,
+		}
+	default: // "rounded"
+		return lipgloss.RoundedBorder()
 	}
 }
 
-func renderMain(a *app.App, width, height int) string {
+// Global renderer instance - initialized on first use
+var globalRenderer *Renderer
+
+// Render renders the entire UI.
+func Render(a *app.App, width, height int) string {
+	// Initialize or update renderer if theme changed
+	if globalRenderer == nil || globalRenderer.theme.Name != a.Config.ResolvedTheme.Name {
+		globalRenderer = NewRenderer(a.Config.ResolvedTheme)
+	}
+
+	return globalRenderer.render(a, width, height)
+}
+
+// render handles the actual rendering with the renderer's styles.
+func (r *Renderer) render(a *app.App, width, height int) string {
+	switch a.ViewMode {
+	case app.ViewModeAddSource:
+		return r.renderAddSource(a, width, height)
+	case app.ViewModeSummary:
+		return r.renderSummary(a, width, height)
+	case app.ViewModeSearch:
+		return r.renderSearch(a, width, height)
+	case app.ViewModeHelp:
+		return r.renderHelp(a, width, height)
+	default:
+		return r.renderMain(a, width, height)
+	}
+}
+
+func (r *Renderer) renderMain(a *app.App, width, height int) string {
 	var b strings.Builder
 
+	// Calculate banner height
+	bannerHeight := 0
+	if r.theme.Header.Show && r.theme.Header.Banner != "" {
+		bannerHeight = strings.Count(r.theme.Header.Banner, "\n") + 2
+	}
+
+	// Render banner if configured
+	if r.theme.Header.Show && r.theme.Header.Banner != "" {
+		b.WriteString(r.renderBanner(width))
+		b.WriteString("\n")
+	}
+
 	// Tab bar (3 lines)
-	b.WriteString(renderTabs(a, width))
+	b.WriteString(r.renderTabs(a, width))
 	b.WriteString("\n")
 
-	// Content area (height - 4 for tabs and status)
-	contentHeight := height - 4
+	// Content area (height - 4 for tabs and status - banner)
+	contentHeight := height - 4 - bannerHeight
 	if contentHeight < 1 {
 		contentHeight = 1
 	}
-	b.WriteString(renderContent(a, width, contentHeight))
+	b.WriteString(r.renderContent(a, width, contentHeight))
 	b.WriteString("\n")
 
 	// Status bar (1 line)
-	b.WriteString(renderStatus(a, width))
+	b.WriteString(r.renderStatus(a, width))
 
 	return b.String()
 }
 
-func renderTabs(a *app.App, width int) string {
+func (r *Renderer) renderBanner(width int) string {
+	banner := r.theme.Header.Banner
+	lines := strings.Split(banner, "\n")
+
+	var b strings.Builder
+	for _, line := range lines {
+		// Center or align based on theme
+		switch r.theme.Header.Align {
+		case "center":
+			padding := (width - len(line)) / 2
+			if padding > 0 {
+				b.WriteString(strings.Repeat(" ", padding))
+			}
+		case "right":
+			padding := width - len(line)
+			if padding > 0 {
+				b.WriteString(strings.Repeat(" ", padding))
+			}
+		}
+		b.WriteString(r.headerStyle.Render(line))
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
+func (r *Renderer) renderTabs(a *app.App, width int) string {
+	t := r.theme
+	title := t.Header.Title
+	if title == "" {
+		title = "termnews"
+	}
+
 	if len(a.Tabs) == 0 {
-		return borderStyle.Width(width - 2).Render(" termnews - No sources ")
+		return r.borderStyle.Width(width - 2).Render(" " + title + " - No sources ")
 	}
 
 	var tabs []string
 	for i, tab := range a.Tabs {
 		name := tab.Source.Name
+
+		// Truncate if necessary
+		if t.TabBar.MaxTabWidth > 0 && len(name) > t.TabBar.MaxTabWidth {
+			name = name[:t.TabBar.MaxTabWidth-len(t.TabBar.TruncateSuffix)] + t.TabBar.TruncateSuffix
+		}
+
 		if tab.Loading {
-			name += " ⟳"
+			name += " " + t.Markers.Loading
 		}
 		if tab.Error != nil {
-			name += " ✗"
+			name += " " + t.Markers.Error
 		}
 
 		// Show unread count if tracking enabled
@@ -141,70 +293,86 @@ func renderTabs(a *app.App, width int) string {
 				unreadCount++
 			}
 		}
-		if unreadCount > 0 && a.Config.ShowReadStatus {
-			name += fmt.Sprintf(" (%d)", unreadCount)
+		if unreadCount > 0 && a.Config.ShowReadStatus && t.TabBar.ShowUnreadCount {
+			name += fmt.Sprintf(t.TabBar.UnreadFormat, unreadCount)
 		}
 
 		if i == a.CurrentTab {
-			tabs = append(tabs, tabActiveStyle.Render(" "+name+" "))
+			tabText := t.Markers.TabActiveLeft + name + t.Markers.TabActiveRight
+			tabs = append(tabs, r.tabActiveStyle.Render(tabText))
 		} else {
-			tabs = append(tabs, tabInactiveStyle.Render(" "+name+" "))
+			tabs = append(tabs, r.tabInactiveStyle.Render(" "+name+" "))
 		}
 	}
 
-	tabBar := strings.Join(tabs, dimStyle.Render("|"))
+	tabBar := strings.Join(tabs, r.dimStyle.Render(t.Markers.TabSeparator))
 
-	return borderStyle.Width(width - 2).Render(
-		titleStyle.Render(" termnews ") + "\n" + tabBar,
+	return r.borderStyle.Width(width - 2).Render(
+		r.titleStyle.Render(" "+title+" ") + "\n" + tabBar,
 	)
 }
 
-func renderContent(a *app.App, width, height int) string {
+func (r *Renderer) renderContent(a *app.App, width, height int) string {
 	if len(a.Tabs) == 0 {
 		msg := "No news sources configured.\nPress 'a' to add a new source."
-		return borderStyle.Width(width - 2).Height(height).Render(msg)
+		return r.borderStyle.Width(width - 2).Height(height).Render(msg)
 	}
 
 	tab := a.Tabs[a.CurrentTab]
+	t := r.theme
 
 	if tab.Loading {
-		return borderStyle.Width(width-2).Height(height).Render(
-			fmt.Sprintf(" %s \n\n⟳ Fetching articles…", tab.Source.Name),
+		return r.borderStyle.Width(width-2).Height(height).Render(
+			fmt.Sprintf(" %s \n\n%s Fetching articles…", tab.Source.Name, t.Markers.Loading),
 		)
 	}
 
 	if tab.Error != nil {
-		return borderStyle.Width(width-2).Height(height).Render(
-			fmt.Sprintf(" %s \n\n%s", tab.Source.Name, errorStyle.Render("✗ "+tab.Error.Error())),
+		return r.borderStyle.Width(width-2).Height(height).Render(
+			fmt.Sprintf(" %s \n\n%s", tab.Source.Name, r.errorStyle.Render(t.Markers.Error+" "+tab.Error.Error())),
 		)
 	}
 
 	if len(tab.Articles) == 0 {
-		return borderStyle.Width(width-2).Height(height).Render(
+		return r.borderStyle.Width(width-2).Height(height).Render(
 			fmt.Sprintf(" %s \n\nNo articles found.", tab.Source.Name),
 		)
 	}
 
 	switch a.ViewMode {
 	case app.ViewModeDetail:
-		return renderDetail(a, tab, width, height)
+		return r.renderDetail(a, tab, width, height)
 	default:
-		return renderList(a, tab, width, height)
+		return r.renderList(a, tab, width, height)
 	}
 }
 
-func renderList(a *app.App, tab *app.TabState, width, height int) string {
+func (r *Renderer) renderList(a *app.App, tab *app.TabState, width, height int) string {
 	var b strings.Builder
 	contentWidth := width - 4
+	t := r.theme
 
 	title := fmt.Sprintf(" %s (%d articles) ", tab.Source.Name, len(tab.Articles))
 	if tab.Source.Category != "" {
-		title += categoryStyle.Render("[" + tab.Source.Category + "]")
+		title += r.categoryStyle.Render("[" + tab.Source.Category + "]")
 	}
 
-	// Calculate visible articles
+	// Calculate visible articles based on display mode
 	visibleHeight := height - 2 // Account for border
-	linesPerArticle := 3        // title + meta + separator
+	
+	// Determine lines per article: base + meta (if not compact) + separator (if shown)
+	// Compact mode: title only (1 line)
+	// Normal mode: title + meta (2 lines)
+	// With separator: add 1 line
+	linesPerArticle := 1 // Always have at least the title line
+	if !t.ArticleList.Compact && t.ArticleList.ShowMeta {
+		linesPerArticle++ // Meta line
+	}
+	if t.ArticleList.ShowSeparators {
+		linesPerArticle++ // Separator line
+	}
+	// Minimum 1 line per article is guaranteed by starting at 1
+
 	visibleArticles := visibleHeight / linesPerArticle
 	if visibleArticles < 1 {
 		visibleArticles = 1
@@ -220,52 +388,76 @@ func renderList(a *app.App, tab *app.TabState, width, height int) string {
 		article := tab.Articles[i]
 		isSelected := i == tab.Selected
 
-		// Title line
+		// Title line - reserve space for prefix (selection marker, number, indicators)
+		// Truncate safely by limiting to available width minus prefix and ellipsis
 		titleText := article.Title
-		if len(titleText) > contentWidth-2 {
-			titleText = titleText[:contentWidth-5] + "..."
+		maxTitleLen := contentWidth - 10 // Reserve space for prefix elements and ellipsis
+		if maxTitleLen < 10 {
+			maxTitleLen = 10 // Minimum readable title length
+		}
+		if len(titleText) > maxTitleLen {
+			titleText = titleText[:maxTitleLen-3] + "..."
+		}
+
+		// Build prefix with optional article number
+		prefix := ""
+		if t.ArticleList.ShowNumbers {
+			prefix = fmt.Sprintf(t.ArticleList.NumberFormat, i+1) + " "
+		}
+
+		// Add selection marker
+		if isSelected {
+			prefix = t.Markers.Selected + " " + prefix
+		} else {
+			prefix = "  " + prefix
 		}
 
 		// Add unread/bookmark indicators
-		prefix := " "
-		if !article.Read && a.Config.ShowReadStatus {
-			prefix = unreadStyle.Render("●") + " "
-		}
 		if article.Bookmarked {
-			prefix = "★ "
+			prefix += r.bookmarkStyle.Render(t.Markers.Bookmark) + " "
+		} else if !article.Read && a.Config.ShowReadStatus {
+			prefix += r.unreadStyle.Render(t.Markers.Unread) + " "
 		}
 
 		if isSelected {
-			b.WriteString(selectedStyle.Render(prefix + titleText))
+			b.WriteString(r.selectedStyle.Render(prefix + titleText))
 		} else {
-			b.WriteString(normalStyle.Render(prefix + titleText))
+			b.WriteString(r.normalStyle.Render(prefix + titleText))
 		}
 		b.WriteString("\n")
 
-		// Meta line
-		var metaParts []string
-		if formattedDate := article.FormattedDate(); formattedDate != "" {
-			metaParts = append(metaParts, formattedDate)
+		// Meta line (if not compact)
+		if !t.ArticleList.Compact && t.ArticleList.ShowMeta {
+			var metaParts []string
+			if formattedDate := article.FormattedDate(); formattedDate != "" {
+				metaParts = append(metaParts, formattedDate)
+			}
+			if article.Author != "" {
+				metaParts = append(metaParts, "by "+article.Author)
+			}
+			if len(metaParts) > 0 {
+				b.WriteString(r.metaStyle.Render("   " + strings.Join(metaParts, " · ")))
+			}
+			b.WriteString("\n")
 		}
-		if article.Author != "" {
-			metaParts = append(metaParts, "by "+article.Author)
-		}
-		if len(metaParts) > 0 {
-			b.WriteString(metaStyle.Render("   " + strings.Join(metaParts, " · ")))
-		}
-		b.WriteString("\n")
 
 		// Separator
-		b.WriteString(dimStyle.Render(strings.Repeat("─", contentWidth)))
-		b.WriteString("\n")
+		if t.ArticleList.ShowSeparators {
+			sep := t.ArticleList.SeparatorChar
+			if sep == "" {
+				sep = t.Borders.Separator
+			}
+			b.WriteString(r.dimStyle.Render(strings.Repeat(sep, contentWidth)))
+			b.WriteString("\n")
+		}
 	}
 
-	return borderStyle.Width(width-2).Height(height).Render(
-		titleStyle.Render(title) + "\n" + b.String(),
+	return r.borderStyle.Width(width-2).Height(height).Render(
+		r.titleStyle.Render(title) + "\n" + b.String(),
 	)
 }
 
-func renderDetail(a *app.App, tab *app.TabState, width, height int) string {
+func (r *Renderer) renderDetail(a *app.App, tab *app.TabState, width, height int) string {
 	if tab.Selected < 0 || tab.Selected >= len(tab.Articles) {
 		return ""
 	}
@@ -273,9 +465,10 @@ func renderDetail(a *app.App, tab *app.TabState, width, height int) string {
 	article := tab.Articles[tab.Selected]
 	contentWidth := width - 4
 	var b strings.Builder
+	t := r.theme
 
 	// Title section
-	b.WriteString(selectedStyle.Render(article.Title))
+	b.WriteString(r.selectedStyle.Render(article.Title))
 	b.WriteString("\n")
 
 	// Meta line
@@ -287,14 +480,14 @@ func renderDetail(a *app.App, tab *app.TabState, width, height int) string {
 		metaParts = append(metaParts, "by "+article.Author)
 	}
 	if len(metaParts) > 0 {
-		b.WriteString(metaStyle.Render(strings.Join(metaParts, " · ")))
+		b.WriteString(r.metaStyle.Render(strings.Join(metaParts, " · ")))
 		b.WriteString("\n")
 	}
 
 	// Link
-	b.WriteString(linkStyle.Render(article.Link))
+	b.WriteString(r.linkStyle.Render(article.Link))
 	b.WriteString("\n")
-	b.WriteString(dimStyle.Render(strings.Repeat("─", contentWidth)))
+	b.WriteString(r.dimStyle.Render(strings.Repeat(t.Borders.Separator, contentWidth)))
 	b.WriteString("\n\n")
 
 	// Article summary
@@ -319,80 +512,120 @@ func renderDetail(a *app.App, tab *app.TabState, width, height int) string {
 		if len(line) > contentWidth {
 			line = line[:contentWidth]
 		}
-		b.WriteString(normalStyle.Render(line))
+		b.WriteString(r.normalStyle.Render(line))
 		b.WriteString("\n")
 	}
 
-	return borderStyle.Width(width-2).Height(height).Render(
-		titleStyle.Render(" "+tab.Source.Name+" ") + "\n" + b.String(),
+	return r.borderStyle.Width(width-2).Height(height).Render(
+		r.titleStyle.Render(" "+tab.Source.Name+" ") + "\n" + b.String(),
 	)
 }
 
-func renderStatus(a *app.App, width int) string {
-	var helpText string
+func (r *Renderer) renderStatus(a *app.App, width int) string {
+	t := r.theme
+	keySep := t.StatusBar.KeySeparator
+	if keySep == "" {
+		keySep = "  "
+	}
+
+	var helpParts []string
+	kb := a.Config.Keybindings
+
 	switch a.ViewMode {
 	case app.ViewModeDetail:
-		helpText = HelpDetail
+		helpParts = []string{
+			kb.ScrollUp.Key + "/" + kb.ScrollUp.Alt + ": up",
+			kb.ScrollDown.Key + "/" + kb.ScrollDown.Alt + ": down",
+			kb.OpenBrowser.Key + ": browser",
+			kb.Bookmark.Key + ": bookmark",
+			kb.Back.Key + ": back",
+			kb.Quit.Key + ": quit",
+		}
 	case app.ViewModeAddSource:
-		helpText = HelpAdd
+		helpParts = []string{"Tab: next field", "←/→: toggle type", "Enter: confirm", "Esc: cancel"}
 	case app.ViewModeSummary:
-		helpText = HelpSummary
+		helpParts = []string{
+			kb.ScrollUp.Key + "/" + kb.ScrollUp.Alt + ": up",
+			kb.ScrollDown.Key + "/" + kb.ScrollDown.Alt + ": down",
+			kb.Back.Key + ": back",
+			kb.Quit.Key + ": quit",
+		}
 	case app.ViewModeSearch:
-		helpText = HelpSearch
+		helpParts = []string{"Type to search", "Enter: select", "Esc: cancel"}
 	case app.ViewModeHelp:
-		helpText = HelpHelp
+		helpParts = []string{
+			kb.ScrollUp.Key + "/" + kb.ScrollUp.Alt + ": up",
+			kb.ScrollDown.Key + "/" + kb.ScrollDown.Alt + ": down",
+			kb.Help.Key + "/Esc: close",
+		}
 	default:
-		helpText = HelpList
+		helpParts = []string{
+			kb.NextTab.Key + ": next",
+			kb.ScrollDown.Key + "/" + kb.ScrollDown.Alt + ": down",
+			kb.Select.Key + ": read",
+			kb.Refresh.Key + ": refresh",
+			kb.Summary.Key + ": summary",
+			kb.Search.Key + ": search",
+			kb.AddSource.Key + ": add",
+			kb.Bookmark.Key + ": bookmark",
+			kb.Help.Key + ": help",
+			kb.Quit.Key + ": quit",
+		}
 	}
+
+	helpText := strings.Join(helpParts, keySep)
 
 	// Show status message if present
 	a.ClearStatusMessage()
 	if a.StatusMessage != "" {
-		return statusStyle.Render(a.StatusMessage)
+		return r.statusStyle.Render(a.StatusMessage)
 	}
 
 	if len(helpText) > width {
 		helpText = helpText[:width-3] + "..."
 	}
 
-	return helpStyle.Render(helpText)
+	return r.statusBarStyle.Render(helpText)
 }
 
-func renderAddSource(a *app.App, width, height int) string {
+func (r *Renderer) renderAddSource(a *app.App, width, height int) string {
 	if a.AddSourceState == nil {
 		return ""
 	}
 
 	state := a.AddSourceState
+	t := r.theme
 
 	var b strings.Builder
-	b.WriteString(titleStyle.Render(" Add News Source "))
+	b.WriteString(r.titleStyle.Render(" Add News Source "))
 	b.WriteString("\n\n")
+
+	sel := t.Markers.Selected
 
 	// Name field
 	nameLabel := "  Name: "
 	if state.ActiveField == app.InputFieldName {
-		nameLabel = "▶ Name: "
-		b.WriteString(selectedStyle.Render(nameLabel + state.Name + "▌"))
+		nameLabel = sel + " Name: "
+		b.WriteString(r.selectedStyle.Render(nameLabel + state.Name + "▌"))
 	} else {
-		b.WriteString(normalStyle.Render(nameLabel + state.Name))
+		b.WriteString(r.normalStyle.Render(nameLabel + state.Name))
 	}
 	b.WriteString("\n\n")
 
 	// URL field
 	urlLabel := "  URL:  "
 	if state.ActiveField == app.InputFieldURL {
-		urlLabel = "▶ URL:  "
-		b.WriteString(selectedStyle.Render(urlLabel + state.URL + "▌"))
+		urlLabel = sel + " URL:  "
+		b.WriteString(r.selectedStyle.Render(urlLabel + state.URL + "▌"))
 	} else {
-		b.WriteString(normalStyle.Render(urlLabel + state.URL))
+		b.WriteString(r.normalStyle.Render(urlLabel + state.URL))
 	}
 	b.WriteString("\n\n")
 
 	// Feed type field
 	typeLabel := "  Type: "
 	if state.ActiveField == app.InputFieldFeedType {
-		typeLabel = "▶ Type: "
+		typeLabel = sel + " Type: "
 	}
 	var typeValue string
 	switch state.FeedTypeIndex {
@@ -404,31 +637,31 @@ func renderAddSource(a *app.App, width, height int) string {
 		typeValue = "RSS / Atom / [Auto]"
 	}
 	if state.ActiveField == app.InputFieldFeedType {
-		b.WriteString(selectedStyle.Render(typeLabel + typeValue))
+		b.WriteString(r.selectedStyle.Render(typeLabel + typeValue))
 	} else {
-		b.WriteString(normalStyle.Render(typeLabel + typeValue))
+		b.WriteString(r.normalStyle.Render(typeLabel + typeValue))
 	}
 	b.WriteString("\n\n")
 
 	// Category field
 	catLabel := "  Category: "
 	if state.ActiveField == app.InputFieldCategory {
-		catLabel = "▶ Category: "
-		b.WriteString(selectedStyle.Render(catLabel + state.Category + "▌"))
+		catLabel = sel + " Category: "
+		b.WriteString(r.selectedStyle.Render(catLabel + state.Category + "▌"))
 	} else {
-		b.WriteString(normalStyle.Render(catLabel + state.Category))
+		b.WriteString(r.normalStyle.Render(catLabel + state.Category))
 	}
 	b.WriteString("\n\n")
 
 	// Error message
 	if state.Error != "" {
-		b.WriteString(errorStyle.Render("Error: " + state.Error))
+		b.WriteString(r.errorStyle.Render("Error: " + state.Error))
 		b.WriteString("\n")
 	}
 
 	// Help
 	b.WriteString("\n")
-	b.WriteString(helpStyle.Render(HelpAdd))
+	b.WriteString(r.helpStyle.Render(" Tab: next field  ←/→: toggle type  Enter: confirm  Esc: cancel "))
 
 	popupWidth := 60
 	if width < 64 {
@@ -436,12 +669,13 @@ func renderAddSource(a *app.App, width, height int) string {
 	}
 	popupHeight := 16
 
-	return borderStyle.Width(popupWidth).Height(popupHeight).Render(b.String())
+	return r.borderStyle.Width(popupWidth).Height(popupHeight).Render(b.String())
 }
 
-func renderSummary(a *app.App, width, height int) string {
+func (r *Renderer) renderSummary(a *app.App, width, height int) string {
 	var b strings.Builder
 	contentWidth := width - 4
+	t := r.theme
 
 	title := fmt.Sprintf(" Summary - Top Articles from All Feeds (%d total) ", len(a.SummaryArticles))
 
@@ -473,15 +707,20 @@ func renderSummary(a *app.App, width, height int) string {
 				titleText = titleText[:contentWidth-5] + "..."
 			}
 
+			prefix := "  "
 			if isSelected {
-				b.WriteString(selectedStyle.Render(" " + titleText))
+				prefix = t.Markers.Selected + " "
+			}
+
+			if isSelected {
+				b.WriteString(r.selectedStyle.Render(prefix + titleText))
 			} else {
-				b.WriteString(normalStyle.Render(" " + titleText))
+				b.WriteString(r.normalStyle.Render(prefix + titleText))
 			}
 			b.WriteString("\n")
 
 			// Source
-			b.WriteString(categoryStyle.Render("   Source: " + sa.SourceName))
+			b.WriteString(r.categoryStyle.Render("   Source: " + sa.SourceName))
 			b.WriteString("\n")
 
 			// Meta
@@ -493,25 +732,26 @@ func renderSummary(a *app.App, width, height int) string {
 				metaParts = append(metaParts, "by "+sa.Article.Author)
 			}
 			if len(metaParts) > 0 {
-				b.WriteString(metaStyle.Render("   " + strings.Join(metaParts, " · ")))
+				b.WriteString(r.metaStyle.Render("   " + strings.Join(metaParts, " · ")))
 			}
 			b.WriteString("\n")
 
 			// Separator
-			b.WriteString(dimStyle.Render(strings.Repeat("─", contentWidth)))
+			b.WriteString(r.dimStyle.Render(strings.Repeat(t.Borders.Separator, contentWidth)))
 			b.WriteString("\n")
 		}
 	}
 
-	content := borderStyle.Width(width-2).Height(height-2).Render(
-		titleStyle.Render(title) + "\n" + b.String(),
+	content := r.borderStyle.Width(width-2).Height(height-2).Render(
+		r.titleStyle.Render(title) + "\n" + b.String(),
 	)
 
-	return content + "\n" + helpStyle.Render(HelpSummary)
+	return content + "\n" + r.helpStyle.Render(" ↑/k: scroll up  ↓/j: scroll down  Esc: back to list  q: quit ")
 }
 
-func renderSearch(a *app.App, width, height int) string {
+func (r *Renderer) renderSearch(a *app.App, width, height int) string {
 	var b strings.Builder
+	t := r.theme
 
 	title := " Search Articles "
 	b.WriteString("Search: " + a.SearchQuery + "▌")
@@ -543,26 +783,35 @@ func renderSearch(a *app.App, width, height int) string {
 			if len(titleText) > contentWidth-4 {
 				titleText = titleText[:contentWidth-7] + "..."
 			}
-			b.WriteString(normalStyle.Render(" " + titleText))
+			b.WriteString(r.normalStyle.Render(" " + titleText))
 			b.WriteString("\n")
-			b.WriteString(categoryStyle.Render("   " + sr.SourceName))
+			b.WriteString(r.categoryStyle.Render("   " + sr.SourceName))
 			b.WriteString("\n")
-			b.WriteString(dimStyle.Render(strings.Repeat("─", contentWidth)))
+			b.WriteString(r.dimStyle.Render(strings.Repeat(t.Borders.Separator, contentWidth)))
 			b.WriteString("\n")
 		}
 	}
 
-	content := borderStyle.Width(width-2).Height(height-2).Render(
-		titleStyle.Render(title) + "\n" + b.String(),
+	content := r.borderStyle.Width(width-2).Height(height-2).Render(
+		r.titleStyle.Render(title) + "\n" + b.String(),
 	)
 
-	return content + "\n" + helpStyle.Render(HelpSearch)
+	return content + "\n" + r.helpStyle.Render(" Type to search  Enter: select  Esc: cancel ")
 }
 
-func renderHelp(a *app.App, width, height int) string {
-	helpContent := `
-TERMNEWS HELP
-═════════════
+func (r *Renderer) renderHelp(a *app.App, width, height int) string {
+	t := r.theme
+	title := t.Header.Title
+	if title == "" {
+		title = "TERMNEWS"
+	}
+
+	// Format help content with title and underline decoration
+	// First %s: application title (e.g., "TERMNEWS")
+	// Second %s: underline decoration (═ repeated to match title length + 5)
+	helpContent := fmt.Sprintf(`
+%s HELP
+%s
 
 NAVIGATION
   Tab, →         Next feed tab
@@ -582,11 +831,27 @@ ACTIONS
   d              Delete current news source
   b              Toggle bookmark on selected article
   m              Mark all articles in current feed as read
-  o              Open article in browser (copies URL)
+  o              Open article in browser
 
 VIEWS
   ?              Show/hide this help
   q              Quit application
+
+THEMING
+  termnews supports extensive customization through themes.
+  Available built-in themes: default, bitchx, hacker, minimal, retro
+
+  Set theme in config.toml:
+    theme = "bitchx"
+
+  Or customize individual elements:
+    [custom_theme.colors]
+    primary = "14"
+    secondary = "10"
+    
+    [custom_theme.markers]
+    unread = "[+]"
+    bookmark = "[*]"
 
 FEATURES
   • RSS and Atom feed support with auto-detection
@@ -596,21 +861,15 @@ FEATURES
   • Category organization for feeds
   • Auto-refresh at configurable intervals
   • Search across all loaded articles
+  • Highly configurable themes and visual styles
 
 CONFIGURATION
   Config file location:
     Linux/macOS: ~/.config/termnews/config.toml
-    Windows:     %APPDATA%\termnews\config.toml
-
-  Example config:
-    [[sources]]
-    name = "Hacker News"
-    url = "https://news.ycombinator.com/rss"
-    feed_type = "auto"
-    category = "Tech"
+    Windows:     %%APPDATA%%\termnews\config.toml
 
 Press Esc or ? to close this help.
-`
+`, title, strings.Repeat("═", len(title)+5))
 
 	lines := strings.Split(helpContent, "\n")
 	var b strings.Builder
@@ -627,6 +886,6 @@ Press Esc or ? to close this help.
 		b.WriteString("\n")
 	}
 
-	content := borderStyle.Width(width-2).Height(height-2).Render(b.String())
-	return content + "\n" + helpStyle.Render(HelpHelp)
+	content := r.borderStyle.Width(width-2).Height(height-2).Render(b.String())
+	return content + "\n" + r.helpStyle.Render(" ↑/k: scroll up  ↓/j: scroll down  Esc/?: close help ")
 }
